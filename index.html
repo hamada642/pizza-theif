@@ -2,102 +2,117 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Pizza Thief 2.5D</title>
+<title>Pizza Thief</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-html,body{margin:0;overflow:hidden;background:#0b0b0b;font-family:Arial}
+html,body{margin:0;background:#111;overflow:hidden;font-family:Arial}
 canvas{display:block}
 
 #ui{
- position:fixed;top:10px;left:10px;color:#fff;
- font-size:18px;z-index:10
+ position:fixed;top:10px;left:10px;color:#fff;font-size:16px
 }
+
+.controls{
+ position:fixed;bottom:20px;left:0;right:0;
+ display:flex;justify-content:space-between;
+ padding:0 20px;pointer-events:auto
+}
+.btn{
+ width:70px;height:70px;
+ background:#333;color:#fff;
+ border-radius:50%;
+ display:flex;align-items:center;justify-content:center;
+ font-size:30px;user-select:none
+}
+.jump{position:absolute;right:20px;bottom:100px}
 </style>
 </head>
 <body>
 
 <div id="ui">
-⭐ Score: <span id="score">0</span><br>
-🏁 Level: <span id="level">1</span><br>
-🏆 Best: <span id="best">0</span>
+⭐ <span id="score">0</span> |
+🏁 <span id="level">1</span>
 </div>
 
 <canvas id="c"></canvas>
 
+<div class="controls">
+ <div class="btn" id="left">◀</div>
+ <div class="btn" id="right">▶</div>
+</div>
+<div class="btn jump" id="jump">⬆</div>
+
 <script>
-/* ===== SETUP ===== */
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
-canvas.width = innerWidth;
-canvas.height = innerHeight;
+const c=document.getElementById("c"),x=c.getContext("2d");
+c.width=innerWidth;c.height=innerHeight;
 
-const scoreEl = document.getElementById("score");
-const levelEl = document.getElementById("level");
-const bestEl  = document.getElementById("best");
+const scoreEl=score=document.getElementById("score");
+const levelEl=document.getElementById("level");
 
-let score=0, level=1, best=+localStorage.best||0;
-bestEl.textContent = best;
+let score=0,level=1,ground=c.height*0.8;
 
-/* ===== AUDIO ===== */
-const AC = window.AudioContext || webkitAudioContext;
-const audio = new AC();
-function beep(f){
- let o=audio.createOscillator(),g=audio.createGain();
- o.connect(g); g.connect(audio.destination);
- o.frequency.value=f;
- g.gain.value=.15;
- o.start();
- o.stop(audio.currentTime+.15);
+const p={x:100,y:0,vx:0,vy:0};
+const e={x:c.width+200,vx:-3};
+
+let L=0,R=0,J=0;
+
+// touch buttons
+left.ontouchstart=()=>L=1;
+left.ontouchend=()=>L=0;
+right.ontouchstart=()=>R=1;
+right.ontouchend=()=>R=0;
+jump.ontouchstart=()=>J=1;
+jump.ontouchend=()=>J=0;
+
+// draw character
+function drawPlayer(px,py){
+ x.fillStyle="#0f0";
+ x.beginPath();x.arc(px,py-30,12,0,7);x.fill(); // head
+ x.fillRect(px-8,py-20,16,30); // body
+ x.fillRect(px-18,py-10,10,5); // arms
+ x.fillRect(px+8,py-10,10,5);
+ x.fillRect(px-8,py+10,6,15); // legs
+ x.fillRect(px+2,py+10,6,15);
 }
 
-/* ===== PLAYER ===== */
-const p={x:120,y:0,vx:0,vy:0,w:40,h:80,walk:0};
+// draw enemy
+function drawEnemy(px,py){
+ x.fillStyle="#c00";
+ x.beginPath();x.arc(px,py-30,12,0,7);x.fill();
+ x.fillRect(px-8,py-20,16,30);
+}
 
-/* ===== ENEMY ===== */
-let enemy={x:canvas.width+100,vx:-3};
-
-/* ===== CONTROLS ===== */
-let keys={};
-onkeydown=e=>keys[e.key]=1;
-onkeyup=e=>keys[e.key]=0;
-
-/* ===== LOOP ===== */
 function loop(){
- ctx.clearRect(0,0,canvas.width,canvas.height);
+ x.clearRect(0,0,c.width,c.height);
 
- let ground = canvas.height*.75;
- ctx.fillStyle="#333";
- ctx.fillRect(0,ground,canvas.width,canvas.height);
+ // ground
+ x.fillStyle="#444";
+ x.fillRect(0,ground,c.width,c.height);
 
- // Player move
- p.vx=(keys.ArrowRight?5:0)-(keys.ArrowLeft?5:0);
+ // movement
+ p.vx=(R-L)*5;
  p.x+=p.vx;
- if(p.vx) p.walk+=.2;
 
- if(keys[" "] && p.y===0){p.vy=-18;beep(500);}
+ if(J && p.y===0)p.vy=-18;
  p.vy+=1;
  p.y+=p.vy;
- if(p.y>0){p.y=0;p.vy=0;}
+ if(p.y>0){p.y=0;p.vy=0}
 
- // Player draw
- ctx.fillStyle="#0f0";
- ctx.fillRect(p.x-20,ground-80+p.y,40,80);
-
- // Enemy
- enemy.x+=enemy.vx;
- ctx.fillStyle="#c00";
- ctx.fillRect(enemy.x-20,ground-80,40,80);
- if(enemy.x<0){
-  enemy.x=canvas.width+100;
+ // enemy
+ e.x+=e.vx;
+ if(e.x<0){
+  e.x=c.width+200;
   score+=500;
   level++;
-  beep(800);
  }
+
+ // draw
+ drawPlayer(p.x,ground+p.y);
+ drawEnemy(e.x,ground);
 
  score++;
  scoreEl.textContent=score;
  levelEl.textContent=level;
- if(score>best){best=score;localStorage.best=best;bestEl.textContent=best;}
 
  requestAnimationFrame(loop);
 }
