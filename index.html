@@ -1,242 +1,108 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>🍕 Pizza Thief 2.5D FINAL</title>
+<title>Pizza Thief 2.5D</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 html,body{margin:0;overflow:hidden;background:#0b0b0b;font-family:Arial}
 canvas{display:block}
 
-/* UI */
 #ui{
  position:fixed;top:10px;left:10px;color:#fff;
  font-size:18px;z-index:10
 }
-#tutorial{
- position:fixed;inset:0;
- background:rgba(0,0,0,.9);
- color:#fff;z-index:99;
- display:flex;flex-direction:column;
- justify-content:center;align-items:center;
- text-align:center
-}
-#tutorial button{
- padding:14px 28px;font-size:20px;
- border:none;border-radius:12px;
- background:#f90;color:#000
-}
-
-/* Mobile Controls */
-#controls{position:fixed;bottom:15px;width:100%;z-index:20;pointer-events:none}
-.btn{
- pointer-events:auto;
- width:56px;height:56px;
- border-radius:50%;
- background:rgba(255,255,255,.12);
- border:1px solid rgba(255,255,255,.25);
- color:#fff;font-size:26px
-}
-#l{position:absolute;left:15px}
-#r{position:absolute;left:80px}
-#j{position:absolute;left:48px;bottom:70px}
-#b{position:absolute;right:80px}
-#w{position:absolute;right:15px}
 </style>
 </head>
 <body>
 
 <div id="ui">
-⭐ النقاط: <span id="score">0</span><br>
-🏁 المرحلة: <span id="level">1</span><br>
-🏆 أعلى نتيجة: <span id="best">0</span>
-</div>
-
-<div id="tutorial">
-<h1>🍕 Pizza Thief</h1>
-<p>
-← → حركة<br>
-↑ قفز<br>
-📦 رمي صندوق<br>
-💧 رش ماء
-</p>
-<button onclick="startGame()">ابدأ</button>
+⭐ Score: <span id="score">0</span><br>
+🏁 Level: <span id="level">1</span><br>
+🏆 Best: <span id="best">0</span>
 </div>
 
 <canvas id="c"></canvas>
 
-<div id="controls">
-<button id="l" class="btn">←</button>
-<button id="r" class="btn">→</button>
-<button id="j" class="btn">↑</button>
-<button id="b" class="btn">📦</button>
-<button id="w" class="btn">💧</button>
-</div>
-
 <script>
-/* ===== BASIC ===== */
-const c=document.getElementById("c"),ctx=c.getContext("2d");
-c.width=innerWidth;c.height=innerHeight;
+/* ===== SETUP ===== */
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+canvas.width = innerWidth;
+canvas.height = innerHeight;
 
-let keys={},score=0,level=1;
-let best=+localStorage.best||0;
-bestEl.textContent=best;
+const scoreEl = document.getElementById("score");
+const levelEl = document.getElementById("level");
+const bestEl  = document.getElementById("best");
+
+let score=0, level=1, best=+localStorage.best||0;
+bestEl.textContent = best;
 
 /* ===== AUDIO ===== */
-const AC=window.AudioContext||webkitAudioContext;
-const audio=new AC();
-function beep(f,d=.12){
+const AC = window.AudioContext || webkitAudioContext;
+const audio = new AC();
+function beep(f){
  let o=audio.createOscillator(),g=audio.createGain();
- o.connect(g);g.connect(audio.destination);
- o.frequency.value=f;o.start();
+ o.connect(g); g.connect(audio.destination);
+ o.frequency.value=f;
  g.gain.value=.15;
- g.gain.exponentialRampToValueAtTime(.01,audio.currentTime+d);
- o.stop(audio.currentTime+d);
+ o.start();
+ o.stop(audio.currentTime+.15);
 }
 
-const music=new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_8b3629c567.mp3");
-music.loop=true;music.volume=.25;
-
 /* ===== PLAYER ===== */
-const player={
- x:120,y:0,vx:0,vy:0,
- w:40,h:80,walk:0,ground:0
-};
+const p={x:120,y:0,vx:0,vy:0,w:40,h:80,walk:0};
 
-/* ===== OBJECTS ===== */
-const enemies=[];
-const boxes=[];
-const water=[];
+/* ===== ENEMY ===== */
+let enemy={x:canvas.width+100,vx:-3};
 
 /* ===== CONTROLS ===== */
+let keys={};
 onkeydown=e=>keys[e.key]=1;
 onkeyup=e=>keys[e.key]=0;
 
-["l","r","j","b","w"].forEach(id=>{
- document.getElementById(id).ontouchstart=e=>{
-  e.preventDefault();
-  keys[{l:"ArrowLeft",r:"ArrowRight",j:" ",b:"x",w:"z"}[id]]=1;
- };
- document.getElementById(id).ontouchend=()=>keys={};
-});
-
-/* ===== START ===== */
-function startGame(){
- tutorial.style.display="none";
- music.play();
- spawnEnemy();
- loop();
-}
-
-/* ===== SPAWN ===== */
-function spawnEnemy(){
- enemies.push({
-  x:c.width+200,
-  vx:-3-level,
-  w:40,h:80
- });
-}
-
-/* ===== DRAW ===== */
-function shadow(x,y){
- ctx.fillStyle="rgba(0,0,0,.4)";
- ctx.beginPath();
- ctx.ellipse(x,y+90,26,8,0,0,7);
- ctx.fill();
-}
-
-function drawPlayer(){
- shadow(player.x,player.ground);
- let s=Math.sin(player.walk)*6;
- ctx.save();
- ctx.translate(player.x,player.y);
- ctx.fillStyle="#0f0";
- ctx.fillRect(-20,-80,40,80);
- ctx.fillStyle="#0a0";
- ctx.fillRect(-18+s,-40,14,40);
- ctx.fillRect(4-s,-40,14,40);
- ctx.restore();
-}
-
 /* ===== LOOP ===== */
 function loop(){
- ctx.clearRect(0,0,c.width,c.height);
+ ctx.clearRect(0,0,canvas.width,canvas.height);
 
- let g=c.height*.75;
- player.ground=g;
+ let ground = canvas.height*.75;
  ctx.fillStyle="#333";
- ctx.fillRect(0,g,c.width,c.height);
+ ctx.fillRect(0,ground,canvas.width,canvas.height);
 
- /* PLAYER MOVE */
- player.vx=(keys.ArrowRight?5:0)-(keys.ArrowLeft?5:0);
- player.x+=player.vx;
- if(player.vx) player.walk+=.25;
+ // Player move
+ p.vx=(keys.ArrowRight?5:0)-(keys.ArrowLeft?5:0);
+ p.x+=p.vx;
+ if(p.vx) p.walk+=.2;
 
- if(keys[" "]&&player.y===0){player.vy=-18;beep(500);}
- player.vy+=1;
- player.y+=player.vy;
- if(player.y>0){player.y=0;player.vy=0;}
+ if(keys[" "] && p.y===0){p.vy=-18;beep(500);}
+ p.vy+=1;
+ p.y+=p.vy;
+ if(p.y>0){p.y=0;p.vy=0;}
 
- drawPlayer();
+ // Player draw
+ ctx.fillStyle="#0f0";
+ ctx.fillRect(p.x-20,ground-80+p.y,40,80);
 
- /* THROW BOX */
- if(keys.x){
-  boxes.push({x:player.x,y:g-60,vx:8});
-  beep(300);
-  keys.x=0;
+ // Enemy
+ enemy.x+=enemy.vx;
+ ctx.fillStyle="#c00";
+ ctx.fillRect(enemy.x-20,ground-80,40,80);
+ if(enemy.x<0){
+  enemy.x=canvas.width+100;
+  score+=500;
+  level++;
+  beep(800);
  }
-
- /* WATER */
- if(keys.z){
-  water.push({x:player.x,y:g-50,vx:10});
-  beep(900);
-  keys.z=0;
- }
-
- /* BOXES */
- boxes.forEach((b,i)=>{
-  b.x+=b.vx;
-  ctx.fillStyle="#964B00";
-  ctx.fillRect(b.x-10,b.y,20,20);
-  enemies.forEach((e,j)=>{
-   if(Math.abs(b.x-e.x)<30){
-    enemies.splice(j,1);
-    boxes.splice(i,1);
-    score+=300;
-    beep(700);
-    spawnEnemy();
-   }
-  });
- });
-
- /* WATER */
- water.forEach((w,i)=>{
-  w.x+=w.vx;
-  ctx.fillStyle="#4af";
-  ctx.fillRect(w.x-6,w.y,12,6);
- });
-
- /* ENEMIES */
- enemies.forEach((e,i)=>{
-  e.x+=e.vx;
-  shadow(e.x,g);
-  ctx.fillStyle="#c00";
-  ctx.fillRect(e.x-20,g-80,40,80);
-  if(e.x<-50){
-   enemies.splice(i,1);
-   spawnEnemy();
-   level++;
-   beep(800);
-  }
- });
 
  score++;
  scoreEl.textContent=score;
  levelEl.textContent=level;
- if(score>best){best=score;localStorage.best=best;}
+ if(score>best){best=score;localStorage.best=best;bestEl.textContent=best;}
 
  requestAnimationFrame(loop);
 }
+loop();
 </script>
 </body>
 </html>
+
